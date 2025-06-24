@@ -59,8 +59,31 @@ public class PressableButtons : MonoBehaviour
     void Start()
     {
         // Initialize the Main Camera in the scene with black background
-        Camera mainCamera = GameObject.Find("MixedRealityPlayspace").transform.Find("Main Camera").GetComponent<Camera>();
-        mainCamera.clearFlags = CameraClearFlags.SolidColor;
+        // For Meta Quest, look for XR Origin (or XR Rig) instead of MixedRealityPlayspace
+        Camera mainCamera = null;
+        
+        // Try different possible camera hierarchy structures for Meta Quest
+        GameObject xrOrigin = GameObject.Find("XR Origin (XR Rig)");
+        if (xrOrigin == null)
+            xrOrigin = GameObject.Find("XR Origin");
+        if (xrOrigin == null)
+            xrOrigin = GameObject.Find("XROrigin");
+        
+        if (xrOrigin != null)
+        {
+            mainCamera = xrOrigin.GetComponentInChildren<Camera>();
+        }
+        
+        // Fallback: look for any camera tagged as MainCamera
+        if (mainCamera == null)
+        {
+            mainCamera = Camera.main;
+        }
+        
+        if (mainCamera != null)
+        {
+            mainCamera.clearFlags = CameraClearFlags.SolidColor;
+        }
 
         // Identify the modelsParentTransform in the scene
         modelsParentTransform = GameObject.Find("Models").transform; // Identify the modelsParentTransform in the scene
@@ -355,9 +378,26 @@ public class PressableButtons : MonoBehaviour
     // En/unable the gameobject components to make it modifiable (or not)
     public void MakeObjectManipulable(GameObject myGO, bool modifiable)
     {
-        myGO.GetComponent<BoxCollider>().enabled = modifiable;
-        myGO.GetComponent<NearInteractionGrabbable>().enabled = modifiable;
-        myGO.GetComponent<ObjectManipulator>().enabled = modifiable;
+        // Enable/disable collider for interaction
+        var collider = myGO.GetComponent<Collider>();
+        if (collider != null)
+        {
+            collider.enabled = modifiable;
+        }
+
+        // Enable/disable XR Grab Interactable for manipulation
+        var grabInteractable = myGO.GetComponent<XRGrabInteractable>();
+        if (grabInteractable != null)
+        {
+            grabInteractable.enabled = modifiable;
+        }
+
+        // If no XRGrabInteractable exists and we want to make it manipulable, add one
+        if (modifiable && grabInteractable == null)
+        {
+            grabInteractable = myGO.AddComponent<XRGrabInteractable>();
+            grabInteractable.movementType = XRBaseInteractable.MovementType.VelocityTracking;
+        }
     }
 /*
     // Create a new screw
@@ -506,18 +546,18 @@ public class PressableButtons : MonoBehaviour
         
     }*/
 
-    // Iterate over the diameters array
-    void NextDiameter()
-    {
-        if (diameterIndex < diametersArray.Length - 1)
-        {
-            diameterIndex ++;
-        }
-        else
-        {
-            diameterIndex = 0;
-        }
-    }
+    // // Iterate over the diameters array
+    // void NextDiameter()
+    // {
+    //     if (diameterIndex < diametersArray.Length - 1)
+    //     {
+    //         diameterIndex ++;
+    //     }
+    //     else
+    //     {
+    //         diameterIndex = 0;
+    //     }
+    // }
 
    /* // Change the length of the screw to the next possible in the list
     void ChangeScrewLength()
@@ -553,19 +593,19 @@ public class PressableButtons : MonoBehaviour
     }*/
 
     // Iterate over the lengths array
-    void NextLength()
-    {
-        if (lengthIndex < lengthsArray.Length - 1)
-        {
+    // void NextLength()
+    // {
+    //     if (lengthIndex < lengthsArray.Length - 1)
+    //     {
             
-            lengthIndex ++;
-        }
-        else
-        {
-            lengthIndex = 0;
-        }
+    //         lengthIndex ++;
+    //     }
+    //     else
+    //     {
+    //         lengthIndex = 0;
+    //     }
         
-    }
+    // }
 /*
     // Create an emission mark in the screw selected to easily identify it in the 3D world
     void SelectThisScrew(GameObject screwGO, bool selectedBool)

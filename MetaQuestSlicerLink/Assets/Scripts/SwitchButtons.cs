@@ -1,5 +1,6 @@
 // This code was developed by Alicia Pose Díez de la Lastra, from Universidad Carlos III de Madrid
 // This script creates all the functions associated to the switch buttons in the ControlPanel
+// Adapted for Meta Quest using XR Interaction Toolkit
 
 // First, import some libraries of interest
 using System.Collections;
@@ -9,10 +10,7 @@ using UnityEditor;
 
 using TMPro;
 
-/*using Microsoft;
-using Microsoft.MixedReality.Toolkit.Utilities;
-using Microsoft.MixedReality.Toolkit.UI;
-using Microsoft.MixedReality.Toolkit.Input;*/
+// Removed Microsoft.MixedReality.Toolkit references for Meta Quest compatibility
 
 using UnityEngine.XR;
 using UnityEngine.XR.Interaction.Toolkit;
@@ -68,7 +66,12 @@ public class SwitchButtons : MonoBehaviour
     Material imageHandlerFixed_mat;
 
     
-
+    // Toggle states for XR Interaction Toolkit compatibility
+    bool connectToSlicerToggleState = false;
+    bool clipSpineToggleState = false;
+    bool spineVisibilityToggleState = true;
+    bool imageVisibilityToggleState = false;
+    bool fixImageToggleState = false;
 
     bool isConnected;
     void Start()
@@ -81,14 +84,12 @@ public class SwitchButtons : MonoBehaviour
     
 
         /// CONNECT TO SLICER ///
-        // Get the switch button in the hierarchy and define two functions to be executed when it is selected and when it is deselected
-        connectToSlicer_Switch = GameObject.Find("ControlPanel").transform.Find("ConnectivityButtons").transform.Find("ButtonCollection").transform.Find("ConnectToSlicerButton").GetComponent<Interactable>();
+        // Get the switch button in the hierarchy and define functions to be executed when it is selected
+        connectToSlicer_Switch = GameObject.Find("ControlPanel").transform.Find("ConnectivityButtons").transform.Find("ButtonCollection").transform.Find("ConnectToSlicerButton").GetComponent<XRBaseInteractable>();
         
-        toggleSlicerConnection.OnSelect.AddListener(() => OnConnectToSlicerON(connectToSlicer_Switch));
-        toggleSlicerConnection.OnDeselect.AddListener(() => OnConnectToSlicerOFF(connectToSlicer_Switch));
-
-        connectToSlicer_Switch.selectEntered.AddListener(OnConnectToSlicerON(connectToSlicer_Switch));
-        connectToSlicer_Switch.selectExited.AddListener(OnConnectToSlicerOFF(connectToSlicer_Switch));
+        // Add event listeners for XR Interaction Toolkit
+        connectToSlicer_Switch.selectEntered.AddListener(OnConnectToSlicerSelect);
+        connectToSlicer_Switch.selectExited.AddListener(OnConnectToSlicerDeselect);
 
         // Change the label to Disconnected
         connectToSlicer_SwitchGO = connectToSlicer_Switch.gameObject;
@@ -97,26 +98,21 @@ public class SwitchButtons : MonoBehaviour
 
         
         /// CLIP SPINE ///
-        // Get the switch button in the hierarchy and define two functions to be executed when it is selected and when it is deselected
-        clipSpine_Switch = GameObject.Find("ControlPanel").transform.Find("ImageButtons").transform.Find("ButtonCollection").transform.Find("ClipSpineSwitch").GetComponent<Interactable>();
-        var toggleClipSpine = clipSpine_Switch.AddReceiver<XRBaseInteractableOnToggleReceiver>();
-        toggleClipSpine.OnSelect.AddListener(() => OnClipSpineON(clipSpine_Switch));
-        toggleClipSpine.OnDeselect.AddListener(() => OnClipSpineOFF(clipSpine_Switch));
+        // Get the switch button in the hierarchy and define functions to be executed when it is interacted with
+        clipSpine_Switch = GameObject.Find("ControlPanel").transform.Find("ImageButtons").transform.Find("ButtonCollection").transform.Find("ClipSpineSwitch").GetComponent<XRBaseInteractable>();
+        clipSpine_Switch.selectEntered.AddListener(OnClipSpineSelect);
 
         clipSpine_SwitchGO = clipSpine_Switch.gameObject;
         // Change the label to OFF and deactivate the button. This button will only be enabled while the client is connected to the server
         clipSpine_label = GameObject.Find("ClipSpineLabel").GetComponent<TextMeshPro>();
         clipSpine_label.text = "Clip spine OFF";
-        clipSpine_Switch.IsToggled = false;
-        clipSpine_Switch.IsEnabled = false;
+        clipSpine_Switch.enabled = false;
 
 
         /// SPINE VISIBILITY ///
-        // Get the switch button in the hierarchy and define two functions to be executed when it is selected and when it is deselected
-        spineVisibility_Switch = GameObject.Find("ControlPanel").transform.Find("SpineButtons").transform.Find("ButtonCollection").transform.Find("SpineVisibilitySwitch").GetComponent<Interactable>();
-        var toggleSpineVisibility = spineVisibility_Switch.AddReceiver<InteractableOnToggleReceiver>();
-        toggleSpineVisibility.OnSelect.AddListener(() => OnTurnModelON(spineVisibility_Switch));
-        toggleSpineVisibility.OnDeselect.AddListener(() => OnTurnModelOFF(spineVisibility_Switch));
+        // Get the switch button in the hierarchy and define functions to be executed when it is interacted with
+        spineVisibility_Switch = GameObject.Find("ControlPanel").transform.Find("SpineButtons").transform.Find("ButtonCollection").transform.Find("SpineVisibilitySwitch").GetComponent<XRBaseInteractable>();
+        spineVisibility_Switch.selectEntered.AddListener(OnSpineVisibilitySelect);
         
         spineVisibility_SwitchGO = spineVisibility_Switch.gameObject;
         // Change the label to ON (the spine is visible)
@@ -127,42 +123,108 @@ public class SwitchButtons : MonoBehaviour
         
 
         /// SHOW IMAGE ///
-        // Get the switch button in the hierarchy and define two functions to be executed when it is selected and when it is deselected
-        imageVisibility_Switch = GameObject.Find("ControlPanel").transform.Find("ImageButtons").transform.Find("ButtonCollection").transform.Find("ImageVisibilitySwitch").GetComponent<Interactable>();
-        var toggleShowImage = imageVisibility_Switch.AddReceiver<InteractableOnToggleReceiver>();
-        toggleShowImage.OnSelect.AddListener(() => OnShowImageON(imageVisibility_Switch));
-        toggleShowImage.OnDeselect.AddListener(() => OnShowImageOFF(imageVisibility_Switch));
+        // Get the switch button in the hierarchy and define functions to be executed when it is interacted with
+        imageVisibility_Switch = GameObject.Find("ControlPanel").transform.Find("ImageButtons").transform.Find("ButtonCollection").transform.Find("ImageVisibilitySwitch").GetComponent<XRBaseInteractable>();
+        imageVisibility_Switch.selectEntered.AddListener(OnImageVisibilitySelect);
 
         showImage_label = GameObject.Find("ShowImageLabel").GetComponent<TextMeshPro>();
         // Change the label to OFF and deactivate the button. This button will only be enabled while the client is connected to the server
         showImage_label.text = "Image OFF";
-        imageVisibility_Switch.IsEnabled = false;
-        imageVisibility_Switch.IsToggled = false;
+        imageVisibility_Switch.enabled = false;
 
         /// FIX IMAGE ///
         // Initialize image handler colors
         imageHandlerFixed_mat = Resources.Load("Materials/ImageFixed_mat") as Material; // Load the fixed image material
-        // Get the switch button in the hierarchy and define two functions to be executed when it is selected and when it is deselected
-        fixImage_Switch = GameObject.Find("ControlPanel").transform.Find("ImageButtons").transform.Find("ButtonCollection").transform.Find("FixImageSwitch").GetComponent<Interactable>();
-        var toggleFixImage = fixImage_Switch.AddReceiver<InteractableOnToggleReceiver>();
-        PressableButtons manageModelsScript = GameObject.Find("Models").GetComponent<PressableButtons>();
-        toggleFixImage.OnSelect.AddListener(() => OnFixImageON(fixImage_Switch, mobileImageGO, manageModelsScript, imageHandler, imageHandlerFixed_mat));
-        toggleFixImage.OnDeselect.AddListener(() => OnFixImageOFF(fixImage_Switch, mobileImageGO, manageModelsScript, imageHandler, imageHandlerMobile_mat));
-
-        
+        // Get the switch button in the hierarchy and define functions to be executed when it is interacted with
+        fixImage_Switch = GameObject.Find("ControlPanel").transform.Find("ImageButtons").transform.Find("ButtonCollection").transform.Find("FixImageSwitch").GetComponent<XRBaseInteractable>();
+        fixImage_Switch.selectEntered.AddListener(OnFixImageSelect);
 
         fixedImageGO = GameObject.Find("ControlPanel").transform.Find("FixedImagePlane").gameObject;
         // Change the label to OFF and deactivate the button. This button will only be enabled while the client is connected to the server
         fixImage_label = GameObject.Find("FixImageLabel").GetComponent<TextMeshPro>();
         fixImage_label.text = "Fix image OFF";
-        fixImage_Switch.IsEnabled = false;
-        fixImage_Switch.IsToggled = false;
+        fixImage_Switch.enabled = false;
         
+    }
+
+    /// CONNECT TO SLICER EVENT HANDLERS ///
+    void OnConnectToSlicerSelect(SelectEnterEventArgs args)
+    {
+        connectToSlicerToggleState = !connectToSlicerToggleState;
+        if (connectToSlicerToggleState)
+        {
+            OnConnectToSlicerON();
+        }
+        else
+        {
+            OnConnectToSlicerOFF();
+        }
+    }
+
+    void OnConnectToSlicerDeselect(SelectExitEventArgs args)
+    {
+        // Handle deselect if needed
+    }
+
+    /// CLIP SPINE EVENT HANDLERS ///
+    void OnClipSpineSelect(SelectEnterEventArgs args)
+    {
+        clipSpineToggleState = !clipSpineToggleState;
+        if (clipSpineToggleState)
+        {
+            OnClipSpineON();
+        }
+        else
+        {
+            OnClipSpineOFF();
+        }
+    }
+
+    /// SPINE VISIBILITY EVENT HANDLERS ///
+    void OnSpineVisibilitySelect(SelectEnterEventArgs args)
+    {
+        spineVisibilityToggleState = !spineVisibilityToggleState;
+        if (spineVisibilityToggleState)
+        {
+            OnTurnModelON();
+        }
+        else
+        {
+            OnTurnModelOFF();
+        }
+    }
+
+    /// IMAGE VISIBILITY EVENT HANDLERS ///
+    void OnImageVisibilitySelect(SelectEnterEventArgs args)
+    {
+        imageVisibilityToggleState = !imageVisibilityToggleState;
+        if (imageVisibilityToggleState)
+        {
+            OnShowImageON();
+        }
+        else
+        {
+            OnShowImageOFF();
+        }
+    }
+
+    /// FIX IMAGE EVENT HANDLERS ///
+    void OnFixImageSelect(SelectEnterEventArgs args)
+    {
+        fixImageToggleState = !fixImageToggleState;
+        if (fixImageToggleState)
+        {
+            OnFixImageON();
+        }
+        else
+        {
+            OnFixImageOFF();
+        }
     }
 
     /// CONNECT TO SLICER ///
     // This function is called everytime the user activates the connectivity switch
-    void OnConnectToSlicerON(Microsoft.MixedReality.Toolkit.UI.Interactable toggleSwitch)
+    void OnConnectToSlicerON()
     {
         // Start the connection with Slicer
         isConnected = connectToServer.OnConnectToSlicerClick(ipString, port);
@@ -171,10 +233,10 @@ public class SwitchButtons : MonoBehaviour
         {
             // Change the label to "Connected", enable the rest of the switches in the UI and start the listening and sending coroutines
             connectToSlicer_label.text = "Connected \nto Slicer";
-            clipSpine_Switch.IsEnabled = true;
-            fixImage_Switch.IsEnabled = true;
-            imageVisibility_Switch.IsEnabled = true;
-            imageVisibility_Switch.IsToggled = true;
+            clipSpine_Switch.enabled = true;
+            fixImage_Switch.enabled = true;
+            imageVisibility_Switch.enabled = true;
+            imageVisibilityToggleState = true;
             listeningRoutine = StartCoroutine(connectToServer.ListenSlicerInfo());
             sendingRoutine = StartCoroutine(connectToServer.SendTransformInfo());
             mobileImageGO.SetActive(true);
@@ -183,12 +245,12 @@ public class SwitchButtons : MonoBehaviour
         else
         {
             connectToSlicer_label.text = "Disconnected \nfrom Slicer";
-            toggleSwitch.IsToggled = false;
+            connectToSlicerToggleState = false;
         }
     }
 
     // This function is called everytime the user deactivates the connectivity switch
-    void OnConnectToSlicerOFF(Microsoft.MixedReality.Toolkit.UI.Interactable toggleSwitch)
+    void OnConnectToSlicerOFF()
     {
         // If there are any listening or sending coroutines active, stop them
         try
@@ -205,23 +267,23 @@ public class SwitchButtons : MonoBehaviour
         connectToServer.OnDisconnectClick();
         // Change the label to "Disconnected"        
         connectToSlicer_label.text = "Disconnected \nfrom Slicer";
-        // Unable the rest of switch buttons in the UI
-        clipSpine_Switch.IsEnabled = false;
-        imageVisibility_Switch.IsEnabled = false;
-        fixImage_Switch.IsEnabled = false;
+        // Disable the rest of switch buttons in the UI
+        clipSpine_Switch.enabled = false;
+        imageVisibility_Switch.enabled = false;
+        fixImage_Switch.enabled = false;
     }
 
     
     /// CLIP SPINE ///
     // This function is called everytime the user activates the clipping tool
-    void OnClipSpineON(Microsoft.MixedReality.Toolkit.UI.Interactable index)
+    void OnClipSpineON()
     {
         // Assign the clipping material to the spine. This material is already associated to the image plane, by definition
         spineModel.GetComponentInChildren<MeshRenderer>().material = clipping_mat;
         clipSpine_label.text = "Clip spine ON";
     }
     // This function is called everytime the user deactivates the clipping tool
-    void OnClipSpineOFF(Microsoft.MixedReality.Toolkit.UI.Interactable index)
+    void OnClipSpineOFF()
     {
         // Assign the spine material to the spine (no clipping)
         spineModel.GetComponentInChildren<MeshRenderer>().material = spine_mat;
@@ -230,7 +292,7 @@ public class SwitchButtons : MonoBehaviour
 
     /// SPINE VISIBILITY ///
     // This function is called everytime the user activates the spine visibility switch button
-    void OnTurnModelON(Microsoft.MixedReality.Toolkit.UI.Interactable index)
+    void OnTurnModelON()
     {
         // Assign the visible material to the spine
         spineModel.GetComponentInChildren<MeshRenderer>().material = visible_mat;
@@ -239,7 +301,7 @@ public class SwitchButtons : MonoBehaviour
     }
 
     // This function is called everytime the user deactivates the spine visibility switch button
-    void OnTurnModelOFF(Microsoft.MixedReality.Toolkit.UI.Interactable index)
+    void OnTurnModelOFF()
     {
         // Assign the non-visible material to the spine
         visible_mat = spineModel.GetComponentInChildren<MeshRenderer>().material; // the visible material could be spine_mat or clipping_mat
@@ -250,7 +312,7 @@ public class SwitchButtons : MonoBehaviour
 
     /// SHOW IMAGE ///
     // This function is called everytime the user activates the image visibility switch button
-    void OnShowImageON(Microsoft.MixedReality.Toolkit.UI.Interactable index)
+    void OnShowImageON()
     {
         // Set the both images visibilities to true
         mobileImageGO.SetActive(true);
@@ -258,14 +320,14 @@ public class SwitchButtons : MonoBehaviour
         // Start the listening coroutine
         listeningRoutine = StartCoroutine(connectToServer.ListenSlicerInfo());
         // Enable the other switch buttons
-        clipSpine_Switch.IsEnabled = true;
-        fixImage_Switch.IsEnabled = true;
+        clipSpine_Switch.enabled = true;
+        fixImage_Switch.enabled = true;
         // Update the label
         showImage_label.text = "Image ON";
     }
 
     // This function is called everytime the user deactivates the image visibility switch button
-    void OnShowImageOFF(Microsoft.MixedReality.Toolkit.UI.Interactable index)//, string toggleSwitchText)
+    void OnShowImageOFF()
     {
         // Set the both images visibilities to false
         mobileImageGO.SetActive(false);
@@ -276,21 +338,23 @@ public class SwitchButtons : MonoBehaviour
         }
         catch { }
         // Since we don't see the image anymore, also stop the clipping of the spine
-        OnClipSpineOFF(clipSpine_Switch);
-        // Unable all the buttons associated to the image plane
-        clipSpine_Switch.IsEnabled = false;
-        clipSpine_Switch.IsToggled = false;
-        fixImage_Switch.IsEnabled = false;
-        fixImage_Switch.IsEnabled = false;
+        OnClipSpineOFF();
+        // Disable all the buttons associated to the image plane
+        clipSpine_Switch.enabled = false;
+        clipSpineToggleState = false;
+        fixImage_Switch.enabled = false;
+        fixImageToggleState = false;
         // Update the show image label
         showImage_label.text = "Image OFF";
         // Assign the spine_mat to the spine (in case it has the clipping mat)
         spineModel.GetComponentInChildren<MeshRenderer>().material = spine_mat;
     }
 
-    // This function is called everytime the user fixes the image plane in the 3D world using the corresponging switch button
-    void OnFixImageON(Microsoft.MixedReality.Toolkit.UI.Interactable index, GameObject mobileImageGO, PressableButtons manageModelsScript, GameObject imageHandler, Material imageHandlerFixed_mat)
+    // This function is called everytime the user fixes the image plane in the 3D world using the corresponding switch button
+    void OnFixImageON()
     {
+        // Get the manage models script
+        PressableButtons manageModelsScript = GameObject.Find("Models").GetComponent<PressableButtons>();
         // Make the object non-manipulable
         manageModelsScript.MakeObjectManipulable(mobileImageGO, false);
         // Change the color of the image handler accordingly
@@ -299,8 +363,10 @@ public class SwitchButtons : MonoBehaviour
         fixImage_label.text = "Fix image ON";
     }
 
-    void OnFixImageOFF(Microsoft.MixedReality.Toolkit.UI.Interactable index, GameObject mobileImageGO, PressableButtons manageModelsScript, GameObject imageHandler, Material imageHandlerMobile_mat)
+    void OnFixImageOFF()
     {
+        // Get the manage models script
+        PressableButtons manageModelsScript = GameObject.Find("Models").GetComponent<PressableButtons>();
         // Make the object manipulable
         manageModelsScript.MakeObjectManipulable(mobileImageGO, true);
         // Change the color of the image handler accordingly
