@@ -1,115 +1,168 @@
 ﻿// Code retrieved from: https://github.com/BIIG-UC3M/IGT-UltrARsound
-// Code created by Marius Krusen
-// Modified by Niklas Kompe, Johann Engster, Phillip Overloeper (adapted for Meta Quest)
+/*
+* Code created by Marius Krusen
+* Modified by Niklas Kompe, Johann Engster, Phillip Overloeper
+* Modified for Meta Quest (Android) compatibility
+*/
 
 using System;
 using System.Text;
 using UnityEngine;
 using System.Collections.Generic;
 using System.Net.Sockets;
+using System.Threading.Tasks;
 
+
+/// <summary>
+/// The class to communicate with the server socket.
+/// </summary>
 public class SocketHandler
 {
+    /// <summary>
+    /// Tcp client for server communication
+    /// </summary>
     private TcpClient tcpClient;
+
+    /// <summary>
+    /// Stream to receive and send messages
+    /// </summary>
     private NetworkStream clientStream;
 
+
+    /// <summary>
+    /// Constructor to create a socket to communicate.
+    /// </summary>
     public SocketHandler()
     {
-        tcpClient = new TcpClient();
+        // Constructor for Meta Quest (Android) - initialization handled in Connect method
     }
 
-    public bool Connect(string ip, int port)
+    /// <summary>
+    /// Connects socket to server.
+    /// </summary>
+    /// <param name="ip">Server ip</param>
+    /// <param name="port">Server port</param>
+    /// <returns>If socket connection was successful.</returns>
+    public async Task<bool> Connect(string ip, int port)
     {
         try
         {
-            tcpClient = new TcpClient(ip, port);
+            // Create a TcpClient
+            tcpClient = new TcpClient();
+            
+            // Set timeout and connect asynchronously
+            var connectTask = tcpClient.ConnectAsync(ip, port);
+            var timeoutTask = Task.Delay(5000);
+            
+            var completedTask = await Task.WhenAny(connectTask, timeoutTask);
+            
+            if (completedTask == timeoutTask)
+            {
+                Debug.Log("Connection timeout");
+                tcpClient?.Close();
+                return false;
+            }
+            
+            // Create clientStream for further communication
             clientStream = tcpClient.GetStream();
-            Debug.Log("[SocketHandler] Connected to " + ip + ":" + port);
             return true;
         }
         catch (Exception e)
         {
-            Debug.LogError("[SocketHandler] Connection failed: " + e);
-            return false;
+            Debug.Log("Connecting exception: " + e);
+            tcpClient?.Close();
         }
+        return false;
     }
 
-    public void Send(string msg)
+    /// <summary>
+    /// Method to send strings to the server.
+    /// </summary>
+    /// <param name="msg">Message to be sent.</param>
+    public async Task Send(String msg)
     {
         byte[] msgAsByteArray = Encoding.ASCII.GetBytes(msg);
-        Send(msgAsByteArray);
+        await Send(msgAsByteArray);
     }
 
-    public void Send(byte[] msg)
+    /// <summary>
+    /// Method to send bytes to the server.
+    /// </summary>
+    /// <param name="msg">Message to be sent.</param>
+    public async Task Send(byte[] msg)
     {
-        if (clientStream != null && clientStream.CanWrite)
-        {
-            try
-            {
-                clientStream.Write(msg, 0, msg.Length);
-            }
-            catch (Exception e)
-            {
-                Debug.LogError("[SocketHandler] Send failed: " + e);
-            }
-        }
-    }
-
-    public byte[] Listen(uint msgSize)
-    {
-        byte[] buffer = new byte[msgSize];
-        List<byte> byteList = new List<byte>();
-        int readBytes = 0;
-
         try
         {
-            while (clientStream != null && clientStream.CanRead && clientStream.DataAvailable)
+            if (clientStream != null && clientStream.CanWrite)
             {
-                readBytes = clientStream.Read(buffer, 0, buffer.Length);
-                byteList.AddRange(new ArraySegment<byte>(buffer, 0, readBytes));
+                await clientStream.WriteAsync(msg, 0, msg.Length);
+                await clientStream.FlushAsync();
             }
         }
         catch (Exception e)
         {
-            Debug.LogError("[SocketHandler] Read failed: " + e);
+            Debug.Log("Send exception: " + e);
         }
+    }
 
-        return byteList.ToArray();
+
+    /// <summary>
+    /// Method to receive a byte array from the server.
+    /// </summary>
+    /// <returns>Message the server has sent.</returns>
+    public async Task<byte[]> Listen(uint msgSize)
+    {
+        try
+        {
+            if (clientStream == null || !clientStream.CanRead)
+            {
+                return new byte[0];
+            }
+
+            byte[] buffer = new byte[msgSize];
+            int totalBytesRead = 0;
+            
+            while (totalBytesRead < msgSize)
+            {
+                int bytesRead = await clientStream.ReadAsync(buffer, totalBytesRead, (int)msgSize - totalBytesRead);
+                if (bytesRead == 0)
+                {
+                    // Connection closed
+                    break;
+                }
+                totalBytesRead += bytesRead;
+            }
+            
+            // Return only the bytes that were actually read
+            byte[] result = new byte[totalBytesRead];
+            Array.Copy(buffer, 0, result, 0, totalBytesRead);
+            return result;
+        }
+        catch (Exception e)
+        {
+            Debug.Log("Listen exception: " + e);
+            return new byte[0];
+        }
     }
 
     public void Disconnect()
     {
         try
         {
-            if (clientStream != null) clientStream.Close();
-            if (tcpClient != null) tcpClient.Close();
+            if (clientStream != null)
+            {
+                clientStream.Close();
+                clientStream = null;
+            }
+            if (tcpClient != null)
+            {
+                tcpClient.Close();
+                tcpClient = null;
+            }
         }
         catch (Exception e)
         {
-            Debug.LogWarning("[SocketHandler] Disconnect warning: " + e);
+            Debug.Log("Disconnect exception: " + e);
         }
     }
 }
-
-// Optional shader compatibility fix for Meta Quest (replace MRTK shader)
-#if UNITY_ANDROID
-[ExecuteAlways]
-public class QuestShaderFix : MonoBehaviour
-{
-    void OnEnable()
-    {
-        var renderers = FindObjectsOfType<Renderer>();
-        foreach (var renderer in renderers)
-        {
-            foreach (var mat in renderer.sharedMaterials)
-            {
-                if (mat != null && mat.shader.name.Contains("Mixed Reality Toolkit"))
-                {
-                    mat.shader = Shader.Find("Mobile/Diffuse");
-                    Debug.Log("[QuestShaderFix] Replaced MRTK shader with Mobile/Diffuse on: " + renderer.name);
-                }
-            }
-        }
-    }
-}
-#endif

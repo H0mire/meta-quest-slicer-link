@@ -224,10 +224,10 @@ public class SwitchButtons : MonoBehaviour
 
     /// CONNECT TO SLICER ///
     // This function is called everytime the user activates the connectivity switch
-    void OnConnectToSlicerON()
+    async void OnConnectToSlicerON()
     {
         // Start the connection with Slicer
-        isConnected = connectToServer.OnConnectToSlicerClick(ipString, port);
+        isConnected = await connectToServer.OnConnectToSlicerClick(ipString, port);
         // If the connection is successful, continue
         if (isConnected)
         {
