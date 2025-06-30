@@ -34,6 +34,14 @@ public class ReadMessageFromServer
     /// Read incoming message's header ///
     public static HeaderInfo ReadHeaderInfo(byte[] iMSGbyteArray)
     {
+        // Check if the message array has enough bytes for a complete header
+        const int expectedHeaderSize = 58;
+        if (iMSGbyteArray == null || iMSGbyteArray.Length < expectedHeaderSize)
+        {
+            Debug.LogError($"Received message is too short. Expected at least {expectedHeaderSize} bytes, got {(iMSGbyteArray?.Length ?? 0)} bytes.");
+            return new HeaderInfo(); // Return empty header info
+        }
+
         // Define the size of each of the components of the header 
         // according to the the OpenIGTLink protocol
         // See documentation: https://github.com/openigtlink/OpenIGTLink/blob/master/Documents/Protocol/header.md
